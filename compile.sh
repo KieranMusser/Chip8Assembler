@@ -1,2 +1,2 @@
 #!/bin/sh
-cc assemble.c main.c -o c8asm
+cc -ansi -pedantic -Wextra -Wall assemble.c main.c -o c8asm

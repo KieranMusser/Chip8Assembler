@@ -21,6 +21,4 @@ struct SymbolTable {
 };
 
 Symbol parse_line(char *line);
-int hash(char *line, int len); 
-uint16_t assemble_symbol(Symbol sym, struct SymbolTable tbl);
 uint16_t* assemble(struct SymbolTable tbl);

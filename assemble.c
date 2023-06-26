@@ -56,7 +56,6 @@ substr next(char *line, int idx) {
 }
 
 int match_comma(char *line, int idx) {
-	substr t;
 	idx = skip_gap(line, idx);
 	if (line[idx] == ',') {
 		return idx + 1;
@@ -95,7 +94,6 @@ int hash(char *text, int len) {
 
 
 int parse_opcode(Symbol *sym, char *line, int s_idx) {
-	int i, curarg;
 	int arg_i;
 	char *endptr;
 	substr token, argtok;
@@ -144,7 +142,7 @@ int parse_opcode(Symbol *sym, char *line, int s_idx) {
 Symbol parse_line(char *line) {
 	Symbol sym;
 	int idx, s_idx;
-	int op_idx, arg_idx;
+	int op_idx;
 	substr token;
 	idx = 0;
 	idx = match_label(&sym, line, idx);
@@ -155,7 +153,6 @@ Symbol parse_line(char *line) {
 	for (op_idx=0; op_idx<num_ops; ++op_idx) {
 		if (strncmp(oplist[op_idx].text,token.start,token.len) == 0) {
 			sym.opc = oplist[op_idx];
-			arg_idx = 0;
 			if (parse_opcode(&sym, line, idx)) {
 				return sym;
 			}
@@ -174,7 +171,7 @@ uint16_t assemble_symbol(Symbol sym, struct SymbolTable tbl) {
 		return 0;
 	}
 	for (i=0; i<4; ++i) {
-		if (sym.opc.code[i] == '\255') {
+		if (sym.opc.code[i] == (unsigned char) '\255') {
 			ret += sym.args[arg_i];
 			if (i != 3)
 				ret <<= 4;
@@ -212,7 +209,7 @@ uint16_t assemble_symbol(Symbol sym, struct SymbolTable tbl) {
 
 uint16_t* assemble(struct SymbolTable tbl) {
 	uint16_t *out;
-	int i, len;
+	int i;
 	out = malloc(sizeof(*out) * tbl.len);
 	for (i=0; i<tbl.len; ++i) {
 		out[i] = assemble_symbol(tbl.tbl[i], tbl);
