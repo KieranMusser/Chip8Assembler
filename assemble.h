@@ -21,44 +21,6 @@ struct SymbolTable {
 };
 
 Symbol parse_line(char *line);
-
-/*
-clr
-ret
-jp NNN
-jpo NNN
-call NNN
-
-cmp F, IDK
-ld VX, IDK
-add VX, IDK
-
-simple intructions
-sub VX,VY
-OR VX,VY
-AND VX,VY
-xor VX,VY
-sr VY,VX
-sl VY,VX
-
-rnd VX, NN
-drw VX,VY,N
-cpk 
-bcd
-
-stor
-fill
-
-*/
-
-/*
-draw v1, v2, 5
-{
-    draw
-    1
-    1
-    5
-}
-
-
-*/
+int hash(char *line, int len); 
+uint16_t assemble_symbol(Symbol sym, struct SymbolTable tbl);
+uint16_t* assemble(struct SymbolTable tbl);

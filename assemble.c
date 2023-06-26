@@ -5,17 +5,13 @@
 
 #include "assemble.h"
 
-void pss(substr s) {
-	printf("SUBSTR %.*s\n", s.len, s.start);
-}
-
 int htoi_c(char ch) {
 	if (ch >= '0' && ch <= '9') {
 		return ch - '0';
 	} else if (ch >= 'a' && ch <= 'f') {
-		return ch - 'a';
+		return ch - 'a' + 10;
 	} else if (ch >= 'A' && ch <= 'F') {
-		return ch - 'A';
+		return ch - 'A' + 10;
 	} else {
 		return 0;
 	}
@@ -80,48 +76,55 @@ int match_label(Symbol *sym, char *line, int idx) {
 	--idx;
 	if (line[idx] == ':') {
 		memcpy(sym->label, line+s_idx, min(15, idx-s_idx));
-		sym->label[min(15, idx-s_idx)+1] = '\0';
+		sym->label[min(15, idx-s_idx)+0] = '\0';
+		++idx;
 	} else {
 		idx = s_idx;
 	}
-	++idx;
 	return idx;
 }
 
-
+int hash(char *text, int len) {
+	int ret = 0;
+	int i;
+	for (i=0; i<len; ++i) {
+		ret = text[i] + (ret  << 6) + (ret << 16) - ret;
+	}
+	return ret;
+}
 
 
 int parse_opcode(Symbol *sym, char *line, int s_idx) {
 	int i, curarg;
 	int arg_i;
-	substr token;
+	char *endptr;
+	substr token, argtok;
 
 	arg_i = 0;
-	printf("idk = %s\n", sym->opc.text);
 	token = next(line, s_idx);
 	s_idx += token.len;
 
 	while (arg_i < MAX_ARGS && sym->opc.args[arg_i] != NA) {
 		token = next(line, s_idx);
-		pss(token);
 		if (sym->opc.args[arg_i] == REG) {
 			if (token.start[0] == 'V' || token.start[0] == 'v') {
 				if (token.len == 2) {
 					sym->args[arg_i] = htoi_c(token.start[1]);
 				} else {
-					printf("bad reg\n");
 					return 0;
 				}
 			} else {
-				printf("expected reg\n");
 				return 0;
 			}
 		} else {
 			if (token.start[0] == 'V' || token.start[0] == 'v') {
-				printf("got reg not good\n");
 				return 0;
 			} else {
-				sym->args[arg_i] = strtol(token.start, NULL, 0);
+				sym->args[arg_i] = strtol(token.start, &endptr, 0);
+				if (token.start == endptr) {
+					argtok = next(token.start, 0);
+					sym->args[arg_i] = hash(argtok.start, argtok.len);
+				}
 			}
 		}
 			
@@ -136,45 +139,7 @@ int parse_opcode(Symbol *sym, char *line, int s_idx) {
 		}
 	}
 	return 1;
-
-	curarg = 0;
-	i = 0;
-	s_idx += token.len;
-	token = next(line, s_idx);
-	for (i=0; i<MAX_ARGS; ++i) {
-		switch (sym->opc.args[i]) {
-		case NA:
-			goto done;
-		case REG:
-			break;
-		default:
-			break;
-		}
-	}
-done: return 0;
-	/*while (i < 5) {
-		printf("idx %d\n",s_idx);
-		token = next(line, s_idx);
-		printf("substr [%d] [%d] %.*s\n", line[s_idx], token.len, token.len, token.start);
-		s_idx += token.len;
-		++curarg;
-		printf("idx %d %c\n",s_idx,line[s_idx]);
-		while (line[s_idx] != ',' && line[s_idx] != '\0' && line[s_idx] != '\n') {
-			++s_idx;
-		}
-		printf("done [%c] %d\n",line[s_idx], line[s_idx]);
-		if (line[s_idx] != ',') {
-			return;
-		}
-		if (curarg == sym->opc.args) {
-			printf("Too many args\n");
-			return;
-		}
-		++s_idx;
-		++i;
-	}*/
 }
-
 
 Symbol parse_line(char *line) {
 	Symbol sym;
@@ -186,7 +151,6 @@ Symbol parse_line(char *line) {
 	
 	s_idx = idx = skip_gap(line, idx);
 	token = next(line, idx);
-	pss(token);
 	idx = s_idx;
 	for (op_idx=0; op_idx<num_ops; ++op_idx) {
 		if (strncmp(oplist[op_idx].text,token.start,token.len) == 0) {
@@ -194,28 +158,65 @@ Symbol parse_line(char *line) {
 			arg_idx = 0;
 			if (parse_opcode(&sym, line, idx)) {
 				return sym;
-			} else {
-				printf("fail\n");
 			}
 		}
 	}
-	printf("overall failure\n");
-	return sym;
-
-	while (!isgap(line[idx]) && line[idx] != '\0' && line[idx] != ',') {
-		++idx;
-	}
-	printf("cur %d [%c]\n",idx,line[idx]);
-	printf("label %s\n",sym.label);
-	printf("instr %.*s\n",idx-s_idx,line+s_idx);
-
-
+	sym.opc = oplist[0];
 	return sym;
 }
 
+uint16_t assemble_symbol(Symbol sym, struct SymbolTable tbl) {
+	int i, arg_i, li, hash_i, value;
+	uint16_t ret;
+	ret = 0;
+	arg_i = 0;
+	if (sym.opc.text[0] == '\13') {
+		return 0;
+	}
+	for (i=0; i<4; ++i) {
+		if (sym.opc.code[i] == '\255') {
+			ret += sym.args[arg_i];
+			if (i != 3)
+				ret <<= 4;
+			++arg_i;
+		} else if (sym.opc.code[i] == 0) {
+			break;
+		} else if (sym.opc.code[i] <= '\3') {
+			value = 0;
+			if (sym.args[arg_i] > (1 << 12)) {
+				value = 255;
+				for (hash_i=0; hash_i<tbl.len; ++hash_i) {
+					if (hash(tbl.tbl[hash_i].label, strlen(tbl.tbl[hash_i].label)) == sym.args[arg_i]) {
+						value = hash_i * 2;
+						break;
+					}
+				}
+			} else {
+				value = sym.args[arg_i];
+			}
 
+			for (li=sym.opc.code[i]-1; li>0; --li) {
+				ret += (value >> (4 * li)) & 0xF;
+				ret <<= 4;
+			}
+			ret += value & 0xF;
+		
+		} else {
+			ret += htoi_c(sym.opc.code[i]);
+			if (i != 3)
+				ret <<= 4;
+		}
+	}
+	return ret;
+}
 
-
-
-
+uint16_t* assemble(struct SymbolTable tbl) {
+	uint16_t *out;
+	int i, len;
+	out = malloc(sizeof(*out) * tbl.len);
+	for (i=0; i<tbl.len; ++i) {
+		out[i] = assemble_symbol(tbl.tbl[i], tbl);
+	}
+	return out;
+}
 
