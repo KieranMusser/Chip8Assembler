@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #include "assemble.h"
 
@@ -57,16 +58,11 @@ uint16_t* assemble_file(char* filename, int *num_syms) {
 int main(int argc, char** argv) {
 	int len, i;
 	uint16_t *data;
-
 	if (argc > 1) {
 		data = assemble_file(argv[1], &len);
 		for (i=0; i<len; ++i) {
-			printf("%04x ",data[i]);
-			if (i % 16 == 15) {
-				printf("\n");
-			}
+			printf("%c%c",data[i] >> 8, data[i] & 0xFF);
 		}
-		printf("\n");
 	}
 	return 0;
 }
